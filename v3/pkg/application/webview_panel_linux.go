@@ -107,6 +107,12 @@ static void panel_enable_devtools(GtkWidget *webview, gboolean enable) {
     webkit_settings_set_enable_developer_extras(settings, enable);
 }
 
+// Enable/disable input capture on the panel widget.
+// When FALSE, clicks pass through to the main webview below.
+static void panel_set_can_target(GtkWidget *widget, int enabled) {
+    gtk_widget_set_can_target(widget, enabled);
+}
+
 // Destroy the panel webview
 // GTK4 removed gtk_widget_destroy; use g_object_unref instead.
 static void panel_destroy(GtkWidget *webview) {
@@ -230,6 +236,11 @@ func (p *linuxPanelImpl) create() {
 	if options.Visible == nil || *options.Visible {
 		C.gtk_widget_set_visible(p.fixed, 1)
 	}
+
+	// By default, the panel does NOT capture input. Clicks pass through
+	// to the main webview. The frontend calls SetInputEnabled(true) when
+	// the user activates the panel (e.g. by clicking inside it).
+	C.gtk_widget_set_can_target(p.fixed, 0)
 
 	// Navigate to initial URL
 	if options.URL != "" {
@@ -370,4 +381,15 @@ func (p *linuxPanelImpl) isFocused() bool {
 		return false
 	}
 	return C.panel_is_focused(p.webview) != 0
+}
+
+func (p *linuxPanelImpl) setInputEnabled(enabled bool) {
+	if p.fixed == nil {
+		return
+	}
+	val := 0
+	if enabled {
+		val = 1
+	}
+	C.gtk_widget_set_can_target(p.fixed, C.gboolean(val))
 }

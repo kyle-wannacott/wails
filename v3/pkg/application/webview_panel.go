@@ -39,6 +39,9 @@ type webviewPanelImpl interface {
 	// Focus
 	focus()
 	isFocused() bool
+
+	// Input
+	setInputEnabled(enabled bool)
 }
 
 var panelID uint32
@@ -273,6 +276,19 @@ func (p *WebviewPanel) Hide() *WebviewPanel {
 		InvokeSync(p.impl.hide)
 	}
 	return p
+}
+
+// SetInputEnabled enables or disables GTK input on this panel.
+// When disabled (default), mouse/keyboard events pass through to the
+// main webview below. When enabled, the website receives events.
+// This allows the frontend to control when the panel captures input,
+// preventing it from stealing focus from other panels.
+func (p *WebviewPanel) SetInputEnabled(enabled bool) {
+	if p.impl != nil && !p.isDestroyed() {
+		InvokeSync(func() {
+			p.impl.setInputEnabled(enabled)
+		})
+	}
 }
 
 // IsVisible returns whether the panel is currently visible
