@@ -108,18 +108,22 @@ static void panel_enable_devtools(GtkWidget *webview, gboolean enable) {
 }
 
 // Destroy the panel webview
+// GTK4 removed gtk_widget_destroy; use g_object_unref instead.
 static void panel_destroy(GtkWidget *webview) {
-    gtk_widget_destroy(webview);
+    g_object_unref(webview);
 }
 
 // Get position allocation
+// GTK4: gtk_widget_get_allocation is deprecated; use gtk_widget_compute_bounds.
 static void panel_get_allocation(GtkWidget *webview, int *x, int *y, int *width, int *height) {
-    GtkAllocation alloc;
-    gtk_widget_get_allocation(webview, &alloc);
-    *x = alloc.x;
-    *y = alloc.y;
-    *width = alloc.width;
-    *height = alloc.height;
+    graphene_rect_t bounds;
+    // Compute bounds relative to the widget's parent
+    if (gtk_widget_compute_bounds(webview, gtk_widget_get_parent(webview), &bounds)) {
+        *x = (int)bounds.origin.x;
+        *y = (int)bounds.origin.y;
+        *width = (int)bounds.size.width;
+        *height = (int)bounds.size.height;
+    }
 }
 
 */
@@ -305,7 +309,7 @@ func (p *linuxPanelImpl) hide() {
 	if p.fixed == nil {
 		return
 	}
-	C.gtk_widget_hide(p.fixed)
+	C.gtk_widget_set_visible(p.fixed, 0)
 }
 
 func (p *linuxPanelImpl) isVisible() bool {
