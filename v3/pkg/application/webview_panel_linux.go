@@ -3,19 +3,16 @@
 package application
 
 /*
-#cgo linux pkg-config: gtk+-3.0 webkit2gtk-4.1 gdk-3.0
+#cgo linux pkg-config: gtk4 webkitgtk-6.0
 
 #include <gtk/gtk.h>
-#include <gdk/gdk.h>
-#include <webkit2/webkit2.h>
+#include <webkit/webkit.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 // Create a new WebKitWebView for a panel
 static GtkWidget* panel_new_webview() {
-    WebKitUserContentManager *manager = webkit_user_content_manager_new();
-    GtkWidget *webView = webkit_web_view_new_with_user_content_manager(manager);
-    return webView;
+    return webkit_web_view_new();
 }
 
 // Create a fixed container to hold the panel webview at specific position
@@ -55,12 +52,12 @@ static void panel_force_reload(GtkWidget *webview) {
 
 // Show webview
 static void panel_show(GtkWidget *webview) {
-    gtk_widget_show(webview);
+    gtk_widget_set_visible(webview, TRUE);
 }
 
 // Hide webview
 static void panel_hide(GtkWidget *webview) {
-    gtk_widget_hide(webview);
+    gtk_widget_set_visible(webview, FALSE);
 }
 
 // Check if visible
@@ -175,9 +172,10 @@ func (p *linuxPanelImpl) create() {
 	// Add the webview to the fixed container at the specified position
 	C.panel_fixed_put(p.fixed, p.webview, C.int(options.X), C.int(options.Y))
 
-	// Add the fixed container to the parent's vbox (above the main webview)
+	// Add the fixed container to the parent's box (above the main webview)
+	// GTK4 uses gtk_box_append instead of gtk_box_pack_start
 	vbox := (*C.GtkBox)(p.parent.vbox)
-	C.gtk_box_pack_start(vbox, p.fixed, 0, 0, 0) // Don't expand
+	C.gtk_box_append(vbox, p.fixed)
 
 	// Enable devtools if in debug mode
 	debugMode := globalApplication.isDebugMode
@@ -205,8 +203,9 @@ func (p *linuxPanelImpl) create() {
 	}
 
 	// Set initial visibility
+	// GTK4: gtk_widget_set_visible replaces gtk_widget_show_all
 	if options.Visible == nil || *options.Visible {
-		C.gtk_widget_show_all(p.fixed)
+		C.gtk_widget_set_visible(p.fixed, 1)
 	}
 
 	// Navigate to initial URL
@@ -299,7 +298,7 @@ func (p *linuxPanelImpl) show() {
 	if p.fixed == nil {
 		return
 	}
-	C.gtk_widget_show_all(p.fixed)
+	C.gtk_widget_set_visible(p.fixed, 1)
 }
 
 func (p *linuxPanelImpl) hide() {
