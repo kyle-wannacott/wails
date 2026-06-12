@@ -161,25 +161,45 @@ func (p *linuxPanelImpl) create() {
 
 	// Create the webview
 	p.webview = C.panel_new_webview()
-
-	// Set size
 	C.panel_set_size(p.webview, C.int(options.Width), C.int(options.Height))
 
-	// Create a fixed container if the parent's vbox doesn't have one for panels
-	// For simplicity, we'll use an overlay approach - add the webview directly to the vbox
-	// and use CSS/GTK positioning
-
-	// Actually, we need to use GtkFixed or GtkOverlay for absolute positioning
-	// For now, let's use the overlay approach with GtkFixed
+	// Create a GtkFixed container for absolute positioning
 	p.fixed = C.panel_new_fixed()
-
-	// Add the webview to the fixed container at the specified position
 	C.panel_fixed_put(p.fixed, p.webview, C.int(options.X), C.int(options.Y))
 
-	// Add the fixed container to the parent's box (above the main webview)
-	// GTK4 uses gtk_box_append instead of gtk_box_pack_start
+	// Use GtkOverlay so the panel floats above the main webview instead
+	// of being packed into the vbox layout (which breaks the app layout).
+	//
+	// Strategy: remove the main webview from the vbox, create an overlay
+	// containing the vbox as the base child, add the panel as overlay child,
+	// then put the overlay where the webview was in the vbox.
 	vbox := (*C.GtkBox)(p.parent.vbox)
-	C.gtk_box_append(vbox, p.fixed)
+
+	// Find the main webview widget within the vbox
+	mainWebview := p.parent.webview
+
+	// Create overlay and add the vbox as its base child
+	overlay := C.gtk_overlay_new()
+	C.gtk_widget_set_vexpand(overlay, 1)
+	C.gtk_widget_set_hexpand(overlay, 1)
+	overlayCast := (*C.GtkOverlay)(unsafe.Pointer(overlay))
+
+	// Add the panel as an overlay child on top
+	C.gtk_overlay_add_overlay(overlayCast, p.fixed)
+
+	// Now replace the main webview in the vbox with the overlay.
+	// The overlay's base child will be the webview, and the panel
+	// will overlay on top at the specified coordinates.
+	// We need to remove the webview from the vbox and insert the overlay.
+
+	// GTK4: remove the webview from the vbox
+	C.gtk_box_remove(vbox, (*C.GtkWidget)(mainWebview))
+
+	// Add the webview as the base child of the overlay
+	C.gtk_overlay_set_child(overlayCast, (*C.GtkWidget)(mainWebview))
+
+	// Insert the overlay into the vbox where the webview was
+	C.gtk_box_append(vbox, overlay)
 
 	// Enable devtools if in debug mode
 	debugMode := globalApplication.isDebugMode
@@ -207,20 +227,17 @@ func (p *linuxPanelImpl) create() {
 	}
 
 	// Set initial visibility
-	// GTK4: gtk_widget_set_visible replaces gtk_widget_show_all
 	if options.Visible == nil || *options.Visible {
 		C.gtk_widget_set_visible(p.fixed, 1)
 	}
 
 	// Navigate to initial URL
 	if options.URL != "" {
-		// TODO: Add support for custom headers when WebKitWebView supports it
 		if len(options.Headers) > 0 {
 			globalApplication.debug("[Panel-Linux] Custom headers specified (not yet supported)",
 				"panelID", p.panel.id,
 				"headers", options.Headers)
 		}
-
 		url := C.CString(options.URL)
 		defer C.free(unsafe.Pointer(url))
 		C.panel_load_url(p.webview, url)
@@ -245,6 +262,7 @@ func (p *linuxPanelImpl) destroy() {
 		p.fixed = nil
 		p.webview = nil
 	}
+	// Note: the overlay is cleaned up when the window is destroyed
 }
 
 func (p *linuxPanelImpl) setBounds(bounds Rect) {
